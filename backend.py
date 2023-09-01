@@ -17,6 +17,9 @@ app = Flask(__name__)
 CORS(app)
 
 
+@app.route('/', methods=['GET'])
+def root():
+        return "Hello From SonicMeow", 200
 
 @app.route('/generate', methods=['POST'])
 def generate_audio():
