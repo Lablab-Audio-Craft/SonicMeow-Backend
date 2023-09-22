@@ -45,6 +45,8 @@ wheels/
 .venv
 venv/
 ENV/
+audiocraft-env/
+
 
 # egs with manifest files
 egs/*

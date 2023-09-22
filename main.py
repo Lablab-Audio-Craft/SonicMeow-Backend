@@ -11,7 +11,7 @@ import random
 import json
 from werkzeug.utils import secure_filename
 import base64
-
+import os
 
 app = Flask(__name__)
 CORS(app)
@@ -20,6 +20,7 @@ CORS(app)
 @app.route('/', methods=['GET'])
 def root():
         return "Hello From SonicMeow", 200
+
 
 @app.route('/generate', methods=['POST'])
 def generate_audio():
@@ -30,27 +31,25 @@ def generate_audio():
     if audio_base64 is None:
         return "No audio received", 400
 
-    print("Received audio:", audio_base64)
+    # Initialize combined_audio variable
+    combined_audio = AudioSegment.empty()
 
-    # Get form data
     bpm = int(request.json.get('bpm', 75))
     prompt_duration = int(request.json.get('duration', 5))
     n_iterations = int(request.json.get('iterations', 7))
     output_duration_range = request.json.get('outputDurationRange', '20-30')
     min_duration, max_duration = map(int, output_duration_range.split('-'))
 
-    # Get the base64-encoded audio and decode it
     audio_bytes = base64.b64decode(audio_base64)
-    
+
     print(f"Received bpm: {bpm}, prompt_duration: {prompt_duration}, n_iterations: {n_iterations}")
 
-    # Save the uploaded base64-decoded audio data temporarily
     filename = "temp_audio.wav"
     filepath = f"./tmp/{filename}"
+    
     with open(filepath, "wb") as f:
         f.write(audio_bytes)
 
-    # Load audio into a usable format
     song, sr = torchaudio.load(filepath)
 
     def peak_normalize(y, target_peak=0.9):
@@ -96,6 +95,7 @@ def generate_audio():
     model_continue.set_generation_params(duration=duration)
 
     all_audio_files = []
+    print("All audio files:", all_audio_files)  # Debugging line
 
     for i in range(n_iterations):
         slice_idx = i % len(slices)
@@ -106,13 +106,27 @@ def generate_audio():
         if len(output.size()) > 2:
             output = output.squeeze()
         
-        filename = f'continue_{i}.wav'
-        audio_write(filename, output.cpu(), model_continue.sample_rate, strategy="loudness", loudness_compressor=True)
-        all_audio_files.append(filename)
+        filename = f'continue_{i}'  # Notice the added '.wav' here
+        filepath = f'./{filename}'  # Here I've prefixed with './', modify it to your need
 
-        combined_audio = AudioSegment.empty()
-        for filename in all_audio_files:
-            combined_audio += AudioSegment.from_wav(filename)
+        audio_write(filepath, output.cpu(), model_continue.sample_rate, strategy="loudness", loudness_compressor=True)
+        print(f"Wrote audio to {filepath}")
+
+    all_audio_files.append(filepath)
+
+    for filepath in all_audio_files:
+        print(f"Loading audio from {filepath}")  # Debugging line
+
+        if os.path.exists(filepath): # Debugging line
+            print(f"File {filepath} exists.")  # Debugging line
+    else:
+            print(f"File {filepath} does NOT exist.")  # Debugging line
+
+    segment = AudioSegment.from_wav(filepath + ".wav")  # Assuming filepath is correct
+
+    combined_audio += segment
+    combined_audio += AudioSegment.from_wav(filepath + ".wav")
+    print("Loaded segment:", segment)  # Debugging line
 
     audio_stream = io.BytesIO()
     combined_audio.export(audio_stream, format='wav')
@@ -126,4 +140,4 @@ def generate_audio():
     )
 
 if __name__ == '__main__':
-    app.run(port=8000)
+    app.run(port=5000)
